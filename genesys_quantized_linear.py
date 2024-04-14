@@ -57,26 +57,26 @@ class genesys_quantized_linear(nn.Module):
 
         # Systolic
         gemm_out = (input @ self.weight_fxp)
-        print("First row of input:")
-        print(input)
-        print("First Col of weight:")
-        print(self.weight_fxp[:,0])
-        print(input @ self.weight_fxp[:,0])
+        # print("First row of input:")
+        # print(input)
+        # print("First Col of weight:")
+        # print(self.weight_fxp[:,0])
+        # print(input @ self.weight_fxp[:,0])
 
-        print("Raw Int Gemm Result: ")
-        print(gemm_out)
+        # print("Raw Int Gemm Result: ")
+        # print(gemm_out)
         gemm_out = gemm_out + self.weight_bias
-        print("Gemm Result Adding Bias: ")
-        print(gemm_out)
+        # print("Gemm Result Adding Bias: ")
+        # print(gemm_out)
 
         # SIMD
-        print("Dequantization Scale", self.M)
+        #print("Dequantization Scale", self.M)
         #output = gemm_out * self.M
         M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
         output = gemm_out * M0
         output = output >> right_shift
-        print("Gemm Result in float: ")
-        print(output)
+        # print("Gemm Result in float: ")
+        # print(output)
         return torch.from_numpy(output.astype(float))
 
         ########################################################
