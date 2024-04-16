@@ -34,23 +34,48 @@ class qSAC(torch.nn.Module):
         self.input_prob_scale = input_prob_scale
 
     def forward_int(self, x):
+        print("Linear 1 forward")
         x = self.linear1(x)#.numpy()
         x = F.relu(x).numpy()
+        # x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
+        # x = F.relu(x).numpy()
+        print("---------------------------------------------------")
 
         # Requantize
         x = quantize(src=x, zero_point=0, scale=self.input_2_scale)
+        np.savetxt('sac/sac_batch_size_2_gemm_relu2_data.txt', x, fmt='%i')        
         
+        print("Linear 2 forward")
         x = self.linear2(x)#.numpy()
         x = F.relu(x).numpy()
+        print("---------------------------------------------------")  
 
-        # Requantize
+        # Uncomment when check mu and prob quantization alone
+        # x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
+        # x = F.relu(x).numpy()
+        # x = torch.from_numpy(x @ self.weight2_fp.transpose() + self.bias2_fp)#.numpy()
+        # x = F.relu(x).numpy()
+
+        # # Requantize
         x_mu = quantize(src=x, zero_point=0, scale=self.input_mu_scale)
-        x_prob = quantize(src=x, zero_point=0, scale=self.input_prob_scale)
+        x_prob = quantize(src=x, zero_point=0, scale=self.input_prob_scale) 
+        np.savetxt('sac/sac_batch_size_2_gemm3_data.txt', x_mu, fmt='%i')
+        np.savetxt('sac/sac_batch_size_2_gemm4_data.txt', x_prob, fmt='%i')
 
-        mu = self.linear_mu(x).numpy()
-        prob = self.linear_prob(x).numpy()
+        print("Mu forward")
+        mu = self.linear_mu(x_mu).numpy()
+        print("---------------------------------------------------")  
+        
+        print("Log Std forward")
+        prob = self.linear_prob(x_prob).numpy()
+        print("---------------------------------------------------")  
 
-        return prob
+        np.savetxt('sac/sac_batch_size_2_mu_golden.txt', mu, fmt='%f')
+        np.savetxt('sac/sac_batch_size_2_prob_golden.txt', prob, fmt='%f')
+
+        #return x
+        return mu
+        #return prob
     
     def forward_float(self, x):
         x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
@@ -59,4 +84,6 @@ class qSAC(torch.nn.Module):
         x = F.relu(x).numpy()
         mu = torch.from_numpy(x @ self.weight_mu_fp.transpose() + self.bias_mu_fp).numpy()
         prob = torch.from_numpy(x @ self.weight_prob_fp.transpose() + self.bias_prob_fp).numpy()
-        return prob
+        #return x
+        return mu
+        #return prob

@@ -18,8 +18,9 @@ import numpy as np
 import scipy.stats as ss
 import scipy
 import matplotlib.pyplot as plt
+from fixpoint_lib import to_fix_val
 
-from genesys_quantized_linear import quantize
+from genesys_quantized_linear import quantize, quantizeMultiplierSmallerThanOne
 from sac_python_model import qSAC
 
 eval = False
@@ -38,7 +39,7 @@ elif runSAC:
     model = SAC.load(model_path)
     model_q = SAC.load(model_path)
 
-print(model_q.policy)
+#print(model_q.policy)
 
 env_id = 'oscillator-v0'
 env = gym.make(env_id)
@@ -72,14 +73,15 @@ if quant:
     # # Full precision weights
     # ####################################################
     # ####################################################
-    weight1_float = policy_net[0].weight.detach().numpy()
-    bias1_float = policy_net[0].bias.detach().numpy()
-    weight2_float = policy_net[2].weight.detach().numpy()
-    bias2_float = policy_net[2].bias.detach().numpy()
 
     if runPPO:
         pass
     elif runSAC:
+        weight1_float = policy_net[0].weight.detach().numpy()
+        bias1_float = policy_net[0].bias.detach().numpy()
+        weight2_float = policy_net[2].weight.detach().numpy()
+        bias2_float = policy_net[2].bias.detach().numpy()
+
         weight_mu_float = mu_net.weight.detach().numpy()
         bias_mu_float = mu_net.bias.detach().numpy()
         weight_prob_float = prob_net.weight.detach().numpy()
@@ -141,10 +143,11 @@ if quant:
     )
 
     policy_net.qconfig = qconfig2
+
     if runPPO:
         action_net.qconfig = qconfig2
     elif runSAC:
-        mu_net.qconfig = qconfig1
+        mu_net.qconfig = qconfig2
         prob_net.qconfig = qconfig2
 
 
@@ -156,12 +159,12 @@ if quant:
         torch.quantization.prepare(prob_net, inplace=True)
 
 
-    print("Before Calibration: ", policy_net)
-    if runPPO:
-        print("Before Calibration: ", action_net)
-    elif runSAC:
-        print("Before Calibration: ", mu_net)
-        print("Before Calibration: ", prob_net)
+    # print("Before Calibration: ", policy_net)
+    # if runPPO:
+    #     print("Before Calibration: ", action_net)
+    # elif runSAC:
+    #     print("Before Calibration: ", mu_net)
+    #     print("Before Calibration: ", prob_net)
 
 
     # Assign prepared network back to model to calibrate
@@ -171,7 +174,7 @@ if quant:
     elif runSAC:
         model_q.policy.actor.latent_pi = policy_net
         model_q.policy.actor.mu = mu_net
-        model_q.policy.actor.prob = prob_net
+        model_q.policy.actor.log_std = prob_net
 
 
     # Calibration with enviorment 
@@ -181,12 +184,12 @@ if quant:
             obs, reward, done, infos = env.step(action)
 
 
-    print("After Calibration: ", policy_net)
-    if runPPO:
-        print("After Calibration: ", action_net)
-    elif runSAC:
-        print("After Calibration: ", mu_net)
-        print("After Calibration: ", prob_net)
+    # print("After Calibration: ", policy_net)
+    # if runPPO:
+    #     print("After Calibration: ", action_net)
+    # elif runSAC:
+    #     print("After Calibration: ", mu_net)
+    #     print("After Calibration: ", prob_net)
 
 
     torch.quantization.convert(policy_net, inplace=True)
@@ -254,11 +257,12 @@ if quant:
         # np.savetxt('sac_data/weight/sac_linear3.txt', weight_q_array3, fmt='%i')
 
     elif runSAC:
+        #print(policy_net)
         print("Input Quantization")
         input_q = policy_net[0]
         scale_input = input_q.scale.numpy()
         zp_input =  input_q.zero_point.numpy()
-        print("Input Scale: ", scale_input)
+        print("Input Scale ", scale_input)
         print("Input Zero Point ", zp_input)
         print("---------------------------------------------------")
 
@@ -273,8 +277,18 @@ if quant:
 
         print("Linear 1 Weight Scale: ", scale_weight1)
         print("Linear 1 Weight Zero Point ", zp_weight1)
-        print("Linear 1 Output Scale: ", scale_linear1_out)
+        print("*** Linear 1 Output Scale ***", scale_linear1_out)
         print("Linear 1 Output Zero Point ", zp_linear1_out)
+        
+        M_linear1 = scale_bias_1
+        M0_linear1, right_shift_linear1 = quantizeMultiplierSmallerThanOne(M_linear1)
+        print("*** Linear1 Dequant Scale ***", M_linear1)
+        print("*** Linear1 Hardware M0 float ***", M0_linear1)
+        print("*** Linear1 Hardware M0 Fxp ***", to_fix_val(M0_linear1))
+        print("*** Linear1 Hardware Scale Right Shift ***", right_shift_linear1)
+        requant_scale_linear1 = 1/scale_linear1_out
+        print("*** Linear1 Output Requantization Scale float ***", requant_scale_linear1)
+        print("*** Linear1 Output Requantization Scale fxp ***", to_fix_val(requant_scale_linear1))
         
         weight_q_array1 = torch.int_repr(policy_net[1].weight()).numpy().astype('int32')
         zero_array1 = np.ones((256,6), dtype=int) * zp_weight1 
@@ -298,7 +312,14 @@ if quant:
         print("Linear 2 Weight Zero Point ", zp_weight2)
         print("Linear 2 Output Scale: ", scale_linear2_out)
         print("Linear 2 Output Zero Point ", zp_linear2_out)
-        
+
+        M_linear2 = scale_bias_2
+        M0_linear2, right_shift_linear2 = quantizeMultiplierSmallerThanOne(M_linear2)
+        print("*** Linear2 Dequant Scale M ***", M_linear2)
+        print("*** Linear2 Hardware M0 float ***", M0_linear2)
+        print("*** Linear2 Hardware M0 Fxp ***", to_fix_val(M0_linear2))
+        print("*** Linear2 Hardware Scale Right Shift ***", right_shift_linear2)
+
         weight_q_array2_final = torch.int_repr(policy_net[3].weight()).numpy().astype('int32') - zp_weight2
         weight_q_array2_final_capped = np.maximum(np.minimum(weight_q_array2_final, 127), -128)
         weight_q_array2_final_transposed = weight_q_array2_final_capped.transpose()
@@ -316,14 +337,26 @@ if quant:
         zp_input_mu =  mu_net[0].zero_point.numpy()
         scale_bias_mu = scale_input_mu * scale_weight_mu
         bias_mu_q = quantize(src=bias_mu_float, scale=scale_bias_mu, zero_point=0, precision=32, signed=True, isPrint=False)
+        np.savetxt('sac/sac_batch_size_2_gemm3_bias.txt', bias_mu_q, fmt='%i')
 
-        print("Mu net Input Scale: ", scale_input_mu)
+        requant_scale_mu = 1/scale_input_mu
+        print("*** Mu net Input Requantization Scale float ***", requant_scale_mu)
+        print("*** Mu net Input Requantization Scale fxp ***", to_fix_val(requant_scale_mu))
+
+        print("Mu net Input Scale ", scale_input_mu)
         print("Mu net Input Zero Point ", zp_input_mu)
         print("Mu Weight Scale: ", scale_weight_mu)
         print("Mu Weight Zero Point ", zp_weight_mu)
         print("Mu Output Scale: ", scale_out_mu)
         print("Mu Output Zero Point ", zp_out_mu)
-
+        
+        M_mu = scale_bias_mu/scale_out_mu
+        M0_mu, right_shift_mu = quantizeMultiplierSmallerThanOne(M_mu)
+        print("*** Mu Hardware M0 float ***", M0_mu)
+        print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
+        print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
+        print("*** Mu Hardware Zero Point ***", zp_out_mu)
+        
         weight_q_mu_final = torch.int_repr(mu_net[1].weight()).numpy().astype('int32') - zp_weight_mu
         weight_q_mu_final_capped = np.maximum(np.minimum(weight_q_mu_final, 127), -128)
         weight_q_mu_final_transposed = weight_q_mu_final_capped.transpose()
@@ -333,7 +366,7 @@ if quant:
         print("---------------------------------------------------")
 
         print("Linear Layer 4")
-        print(prob_net)
+        #print(prob_net)
         scale_weight_prob = prob_net[1].weight().q_scale()
         zp_weight_prob = prob_net[1].weight().q_zero_point()
         scale_out_prob = prob_net[1].scale
@@ -342,13 +375,25 @@ if quant:
         zp_input_prob =  prob_net[0].zero_point.numpy()
         scale_bias_prob = scale_input_prob * scale_weight_prob
         bias_prob_q = quantize(src=bias_prob_float, scale=scale_bias_prob, zero_point=0, precision=32, signed=True, isPrint=False)
+        np.savetxt('sac/sac_batch_size_2_gemm4_bias.txt', bias_mu_q, fmt='%i')
 
-        print("Prob net Input Scale: ", scale_input_prob)
+        requant_scale_prob = 1/scale_input_prob
+        print("*** Prob net Input Requantization Scale float ***", requant_scale_prob)
+        print("*** Prob net Input Requantization Scale fxp ***", to_fix_val(requant_scale_prob))
+
+        print("Prob net Input Scale ", scale_input_prob)
         print("Prob net Input Zero Point ", zp_input_prob)
         print("Prob Weight Scale: ", scale_weight_prob)
         print("Prob Weight Zero Point ", zp_weight_prob)
         print("Prob Output Scale: ", scale_out_prob)
         print("Prob Output Zero Point ", zp_out_prob)
+
+        M_prob = scale_bias_prob/scale_out_prob
+        M0_prob, right_shift_prob = quantizeMultiplierSmallerThanOne(M_prob)
+        print("*** Prob Hardware M0 float ***", M0_prob)
+        print("*** Prob Hardware M0 Fxp ***", to_fix_val(M0_prob))
+        print("*** Prob Hardware Scale Right Shift ***", right_shift_prob)
+        print("*** Prob Hardware Zero Point ***", zp_out_prob)
 
         weight_q_prob_final = torch.int_repr(prob_net[1].weight()).numpy().astype('int32') - zp_weight_prob
         weight_q_prob_final_capped = np.maximum(np.minimum(weight_q_prob_final, 127), -128)
@@ -388,6 +433,7 @@ if quant:
                          weight_prob_fp = weight_prob_float, weight_prob_fxp = weight_q_prob_final_transposed, bias_prob_fp = bias_prob_float, bias_prob_fxp = bias_prob_q, M_prob = scale_bias_prob, input_prob_scale = scale_input_prob)
 
     print("Quantized Forward")
+    #out_int_linear = quantized_SAC.forward_int(input_fp) 
     out_int_linear = quantized_SAC.forward_int(input_pad_final) 
     print("Quantized Forward Float Output")
     print(out_int_linear)

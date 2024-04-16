@@ -4,11 +4,12 @@ import copy
 import numpy as np
 import math
 from fxpmath import Fxp
+from fixpoint_lib import to_fix_val
 
 # From https://github.com/google/gemmlowp/blob/master/doc/quantization_example.cc#L210
 def quantizeMultiplierSmallerThanOne(real_multiplier):
     right_shift = 0
-    real_multiplier_local = real_multiplier
+    real_multiplier_local = 0 + real_multiplier
     while real_multiplier_local < 0.5:
         real_multiplier_local *= 2.0
         right_shift+=1
@@ -70,11 +71,15 @@ class genesys_quantized_linear(nn.Module):
         # print(gemm_out)
 
         # SIMD
-        #print("Dequantization Scale", self.M)
-        #output = gemm_out * self.M
+        # print("M in float", self.M)
+        # output = gemm_out * self.M
         M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
         output = gemm_out * M0
         output = output >> right_shift
+        # print("M in float", self.M)
+        # print("M0 in float", M0)
+        # print("M0 in fxp", to_fix_val(M0))
+        # print("Right shift", right_shift)
         # print("Gemm Result in float: ")
         # print(output)
         return torch.from_numpy(output.astype(float))
