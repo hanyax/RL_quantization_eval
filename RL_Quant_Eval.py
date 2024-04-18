@@ -27,7 +27,7 @@ eval = False
 quant = not eval
 runPPO = False
 runSAC = not runPPO
-n_timesteps = 5000
+n_timesteps = 50000
 
 if runPPO:
     model_path = "/home/hanyang/RL_quantization_eval/rl-trained-agents/testPPO_exp_1000_pytorch_test50"
@@ -142,7 +142,7 @@ if quant:
         weight=MinMaxObserver.with_args(qscheme=torch.per_tensor_affine, dtype=torch.qint8)
     )
 
-    policy_net.qconfig = qconfig2
+    policy_net.qconfig = qconfig1
 
     if runPPO:
         action_net.qconfig = qconfig2
@@ -282,9 +282,10 @@ if quant:
         
         M_linear1 = scale_bias_1
         M0_linear1, right_shift_linear1 = quantizeMultiplierSmallerThanOne(M_linear1)
-        print("*** Linear1 Dequant Scale ***", M_linear1)
-        print("*** Linear1 Hardware M0 float ***", M0_linear1)
-        print("*** Linear1 Hardware M0 Fxp ***", to_fix_val(M0_linear1))
+        print("*** Linear1 Dequant Scale M float ***", M_linear1)
+        print("*** Linear1 Dequant Scale M fxp ***", to_fix_val(M_linear1))
+        # print("*** Linear1 Hardware M0 float ***", M0_linear1)
+        # print("*** Linear1 Hardware M0 Fxp ***", to_fix_val(M0_linear1))
         print("*** Linear1 Hardware Scale Right Shift ***", right_shift_linear1)
         requant_scale_linear1 = 1/scale_linear1_out
         print("*** Linear1 Output Requantization Scale float ***", requant_scale_linear1)
@@ -315,9 +316,10 @@ if quant:
 
         M_linear2 = scale_bias_2
         M0_linear2, right_shift_linear2 = quantizeMultiplierSmallerThanOne(M_linear2)
-        print("*** Linear2 Dequant Scale M ***", M_linear2)
-        print("*** Linear2 Hardware M0 float ***", M0_linear2)
-        print("*** Linear2 Hardware M0 Fxp ***", to_fix_val(M0_linear2))
+        print("*** Linear2 Dequant Scale M float ***", M_linear2)
+        print("*** Linear2 Dequant Scale M float ***", to_fix_val(M_linear2))
+        # print("*** Linear2 Hardware M0 float ***", M0_linear2)
+        # print("*** Linear2 Hardware M0 Fxp ***", to_fix_val(M0_linear2))
         print("*** Linear2 Hardware Scale Right Shift ***", right_shift_linear2)
 
         weight_q_array2_final = torch.int_repr(policy_net[3].weight()).numpy().astype('int32') - zp_weight2
@@ -337,7 +339,8 @@ if quant:
         zp_input_mu =  mu_net[0].zero_point.numpy()
         scale_bias_mu = scale_input_mu * scale_weight_mu
         bias_mu_q = quantize(src=bias_mu_float, scale=scale_bias_mu, zero_point=0, precision=32, signed=True, isPrint=False)
-        np.savetxt('sac/sac_batch_size_2_gemm3_bias.txt', bias_mu_q, fmt='%i')
+        bias_3_file = np.tile(bias_mu_q, (16))
+        np.savetxt('sac/sac_batch_size_2_gemm3_bias.txt', bias_3_file, fmt='%i')
 
         requant_scale_mu = 1/scale_input_mu
         print("*** Mu net Input Requantization Scale float ***", requant_scale_mu)
@@ -352,16 +355,20 @@ if quant:
         
         M_mu = scale_bias_mu/scale_out_mu
         M0_mu, right_shift_mu = quantizeMultiplierSmallerThanOne(M_mu)
-        print("*** Mu Hardware M0 float ***", M0_mu)
-        print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
-        print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
+        print("*** Mu Requant M float ***", M_mu)
+        print("*** Mu Requant M float ***", to_fix_val(M_mu))
+        # print("*** Mu Hardware M0 float ***", M0_mu)
+        # print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
+        # print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
         print("*** Mu Hardware Zero Point ***", zp_out_mu)
         
         weight_q_mu_final = torch.int_repr(mu_net[1].weight()).numpy().astype('int32') - zp_weight_mu
         weight_q_mu_final_capped = np.maximum(np.minimum(weight_q_mu_final, 127), -128)
         weight_q_mu_final_transposed = weight_q_mu_final_capped.transpose()
         np.savetxt('sac/sac_batch_size_2_gemm3_weight_pre_transpose.txt', weight_q_mu_final_capped, fmt='%i')
-        np.savetxt('sac/sac_batch_size_2_gemm3_weight.txt', weight_q_mu_final_transposed, fmt='%i')
+
+        weight_3_file = np.tile(weight_q_mu_final_transposed, (16))
+        np.savetxt('sac/sac_batch_size_2_gemm3_weight.txt', weight_3_file, fmt='%i')
 
         print("---------------------------------------------------")
 
@@ -375,7 +382,8 @@ if quant:
         zp_input_prob =  prob_net[0].zero_point.numpy()
         scale_bias_prob = scale_input_prob * scale_weight_prob
         bias_prob_q = quantize(src=bias_prob_float, scale=scale_bias_prob, zero_point=0, precision=32, signed=True, isPrint=False)
-        np.savetxt('sac/sac_batch_size_2_gemm4_bias.txt', bias_mu_q, fmt='%i')
+        bias_4_file = np.tile(bias_prob_q, (16))
+        np.savetxt('sac/sac_batch_size_2_gemm4_bias.txt', bias_4_file, fmt='%i')
 
         requant_scale_prob = 1/scale_input_prob
         print("*** Prob net Input Requantization Scale float ***", requant_scale_prob)
@@ -390,16 +398,21 @@ if quant:
 
         M_prob = scale_bias_prob/scale_out_prob
         M0_prob, right_shift_prob = quantizeMultiplierSmallerThanOne(M_prob)
-        print("*** Prob Hardware M0 float ***", M0_prob)
-        print("*** Prob Hardware M0 Fxp ***", to_fix_val(M0_prob))
-        print("*** Prob Hardware Scale Right Shift ***", right_shift_prob)
+        print("*** Prob Requant M float ***", M_prob)
+        print("*** Prob Requant M fxp ***", to_fix_val(M_prob))
+        # print("*** Prob Hardware M0 float ***", M0_prob)
+        # print("*** Prob Hardware M0 Fxp ***", to_fix_val(M0_prob))
+        # print("*** Prob Hardware Scale Right Shift ***", right_shift_prob)
         print("*** Prob Hardware Zero Point ***", zp_out_prob)
 
         weight_q_prob_final = torch.int_repr(prob_net[1].weight()).numpy().astype('int32') - zp_weight_prob
         weight_q_prob_final_capped = np.maximum(np.minimum(weight_q_prob_final, 127), -128)
         weight_q_prob_final_transposed = weight_q_prob_final_capped.transpose()
         np.savetxt('sac/sac_batch_size_2_gemm4_weight_pre_transpose.txt', weight_q_prob_final_capped, fmt='%i')
-        np.savetxt('sac/sac_batch_size_2_gemm4_weight.txt', weight_q_prob_final_transposed, fmt='%i')
+
+        weight_4_file = np.tile(weight_q_prob_final_transposed, (16))
+        #print(weight_4_file.shape)
+        np.savetxt('sac/sac_batch_size_2_gemm4_weight.txt', weight_4_file, fmt='%i')
 
         print("---------------------------------------------------")
 
@@ -417,7 +430,7 @@ if quant:
     input_final[0] = input_pad_final
     input_final[1] = input_pad_final
     input_final = input_final.flatten()
-    np.savetxt('sac/sac_batch_size_2_gemm_relu1_data.txt', input_pad_final, fmt='%i')
+    np.savetxt('sac/sac_batch_size_2_gemm_relu1_data.txt', input_final, fmt='%i')
 
     # qSAC:
     # print("Input FP:")
@@ -451,12 +464,18 @@ if quant:
     print("diff")
     a = np.abs(out_int_linear-out_float)
     b = np.abs(out_float)
-    #error_rate = np.average(np.divide(a, b, out=np.zeros_like(a), where=b!=0))
-    a = a[a!=0]
-    b = b[b!=0]
-    error_rate = np.average(a/b)
+    
+    # Include 0
+    print("Include 0:")
+    print(np.average(np.divide(a, b, out=np.zeros_like(a), where=b!=0)))
 
-    print(error_rate)
+    # Exclude 0 
+    result = []
+    for idx, x in enumerate(b):
+        if x != 0:
+            result.append(a[idx]/x) 
+    print("Exclude 0:")
+    print(np.average(np.array(result)))
 
 # Evaluation
 ##########################

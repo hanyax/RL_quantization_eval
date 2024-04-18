@@ -41,26 +41,41 @@ class qSAC(torch.nn.Module):
         # x = F.relu(x).numpy()
         print("---------------------------------------------------")
 
-        # Requantize
-        x = quantize(src=x, zero_point=0, scale=self.input_2_scale)
-        np.savetxt('sac/sac_batch_size_2_gemm_relu2_data.txt', x, fmt='%i')        
+        # # Requantize
+        x = quantize(src=x, zero_point=0, scale=self.input_2_scale, isPrint=True)
+
+        gemm_relu2_data_final = np.zeros((2,256))
+        gemm_relu2_data_final[0] = x
+        gemm_relu2_data_final[1] = x
+        gemm_relu2_data_final = gemm_relu2_data_final.flatten()
+        np.savetxt('sac/sac_batch_size_2_gemm_relu2_data.txt', gemm_relu2_data_final, fmt='%i')        
         
         print("Linear 2 forward")
         x = self.linear2(x)#.numpy()
         x = F.relu(x).numpy()
-        print("---------------------------------------------------")  
+        # print("---------------------------------------------------")  
 
-        # Uncomment when check mu and prob quantization alone
-        # x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
-        # x = F.relu(x).numpy()
-        # x = torch.from_numpy(x @ self.weight2_fp.transpose() + self.bias2_fp)#.numpy()
-        # x = F.relu(x).numpy()
+        # # Uncomment when check mu and prob quantization alone
+        # # x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
+        # # x = F.relu(x).numpy()
+        # # x = torch.from_numpy(x @ self.weight2_fp.transpose() + self.bias2_fp)#.numpy()
+        # # x = F.relu(x).numpy()
 
         # # Requantize
         x_mu = quantize(src=x, zero_point=0, scale=self.input_mu_scale)
         x_prob = quantize(src=x, zero_point=0, scale=self.input_prob_scale) 
-        np.savetxt('sac/sac_batch_size_2_gemm3_data.txt', x_mu, fmt='%i')
-        np.savetxt('sac/sac_batch_size_2_gemm4_data.txt', x_prob, fmt='%i')
+
+        mu_data_final = np.zeros((2,256))
+        mu_data_final[0] = x_mu
+        mu_data_final[1] = x_mu
+        mu_data_final = mu_data_final.flatten()
+        np.savetxt('sac/sac_batch_size_2_gemm3_data.txt', mu_data_final, fmt='%i')
+
+        prob_data_final = np.zeros((2,256))
+        prob_data_final[0] = x_prob
+        prob_data_final[1] = x_prob
+        prob_data_final = prob_data_final.flatten()
+        np.savetxt('sac/sac_batch_size_2_gemm4_data.txt', prob_data_final, fmt='%i')
 
         print("Mu forward")
         mu = self.linear_mu(x_mu).numpy()
@@ -74,8 +89,8 @@ class qSAC(torch.nn.Module):
         np.savetxt('sac/sac_batch_size_2_prob_golden.txt', prob, fmt='%f')
 
         #return x
-        return mu
-        #return prob
+        #return mu
+        return prob
     
     def forward_float(self, x):
         x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
@@ -85,5 +100,5 @@ class qSAC(torch.nn.Module):
         mu = torch.from_numpy(x @ self.weight_mu_fp.transpose() + self.bias_mu_fp).numpy()
         prob = torch.from_numpy(x @ self.weight_prob_fp.transpose() + self.bias_prob_fp).numpy()
         #return x
-        return mu
-        #return prob
+        #return mu
+        return prob

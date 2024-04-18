@@ -4,7 +4,7 @@ import copy
 import numpy as np
 import math
 from fxpmath import Fxp
-from fixpoint_lib import to_fix_val
+from fixpoint_lib import to_fix_val, to_fp, to_fix
 
 # From https://github.com/google/gemmlowp/blob/master/doc/quantization_example.cc#L210
 def quantizeMultiplierSmallerThanOne(real_multiplier):
@@ -28,6 +28,9 @@ def clamp(src, precision=8, signed=False):
 def quantize(src, zero_point, scale, precision=8, signed=False, isPrint=False):
     inv_scale = 1.0/scale
     transformed_val = src * inv_scale;
+    if isPrint:
+        print("Input ", src)
+        print("transformed_val ", transformed_val)
     # The correct way is to use a round to the nearest integer, since it is not added, use floor for now
     #transformed_val = zero_point + np.round(transformed_val)
     transformed_val = zero_point + np.round(transformed_val)
@@ -64,25 +67,36 @@ class genesys_quantized_linear(nn.Module):
         # print(self.weight_fxp[:,0])
         # print(input @ self.weight_fxp[:,0])
 
-        # print("Raw Int Gemm Result: ")
-        # print(gemm_out)
+        print("Raw Int Gemm Result: ")
+        print(gemm_out)
         gemm_out = gemm_out + self.weight_bias
-        # print("Gemm Result Adding Bias: ")
-        # print(gemm_out)
+        print("Gemm Result Adding Bias: ")
+        print(gemm_out)
+
+        print("Gemm out fxp")
+        gemm_out_fxp: Any = np.left_shift(gemm_out, 16)
+
+        new_gemm_out_fxp: NDArray[Any] = np.full(gemm_out_fxp.shape, fill_value = Fxp(), dtype = Fxp)
+        for i, val in np.ndenumerate(gemm_out_fxp):
+            temp: Fxp = to_fp(val)
+            temp *= to_fix(self.M)
+            new_gemm_out_fxp[i] = temp
+        
+        print(new_gemm_out_fxp)
 
         # SIMD
         # print("M in float", self.M)
         # output = gemm_out * self.M
-        M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
-        output = gemm_out * M0
-        output = output >> right_shift
+        #M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
+        #output = gemm_out * M0
+        #output = output >> right_shift
         # print("M in float", self.M)
         # print("M0 in float", M0)
         # print("M0 in fxp", to_fix_val(M0))
         # print("Right shift", right_shift)
-        # print("Gemm Result in float: ")
-        # print(output)
-        return torch.from_numpy(output.astype(float))
+        print("Gemm Result in float: ")
+        print(new_gemm_out_fxp.astype(float))
+        return torch.from_numpy(new_gemm_out_fxp.astype(float))
 
         ########################################################
         # Original Algorithm from the paper without offline precompute
