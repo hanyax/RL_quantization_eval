@@ -284,9 +284,6 @@ if quant:
         M0_linear1, right_shift_linear1 = quantizeMultiplierSmallerThanOne(M_linear1)
         print("*** Linear1 Dequant Scale M float ***", M_linear1)
         print("*** Linear1 Dequant Scale M fxp ***", to_fix_val(M_linear1))
-        # print("*** Linear1 Hardware M0 float ***", M0_linear1)
-        # print("*** Linear1 Hardware M0 Fxp ***", to_fix_val(M0_linear1))
-        print("*** Linear1 Hardware Scale Right Shift ***", right_shift_linear1)
         requant_scale_linear1 = 1/scale_linear1_out
         print("*** Linear1 Output Requantization Scale float ***", requant_scale_linear1)
         print("*** Linear1 Output Requantization Scale fxp ***", to_fix_val(requant_scale_linear1))
@@ -318,9 +315,6 @@ if quant:
         M0_linear2, right_shift_linear2 = quantizeMultiplierSmallerThanOne(M_linear2)
         print("*** Linear2 Dequant Scale M float ***", M_linear2)
         print("*** Linear2 Dequant Scale M float ***", to_fix_val(M_linear2))
-        # print("*** Linear2 Hardware M0 float ***", M0_linear2)
-        # print("*** Linear2 Hardware M0 Fxp ***", to_fix_val(M0_linear2))
-        print("*** Linear2 Hardware Scale Right Shift ***", right_shift_linear2)
 
         weight_q_array2_final = torch.int_repr(policy_net[3].weight()).numpy().astype('int32') - zp_weight2
         weight_q_array2_final_capped = np.maximum(np.minimum(weight_q_array2_final, 127), -128)
@@ -355,8 +349,8 @@ if quant:
         
         M_mu = scale_bias_mu/scale_out_mu
         M0_mu, right_shift_mu = quantizeMultiplierSmallerThanOne(M_mu)
-        print("*** Mu Requant M float ***", M_mu)
-        print("*** Mu Requant M float ***", to_fix_val(M_mu))
+        print("*** Mu Requant M float float ***", M_mu)
+        print("*** Mu Requant M float fxp ***", to_fix_val(M_mu))
         # print("*** Mu Hardware M0 float ***", M0_mu)
         # print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
         # print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
