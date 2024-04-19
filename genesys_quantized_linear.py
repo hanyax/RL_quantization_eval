@@ -87,9 +87,9 @@ class genesys_quantized_linear(nn.Module):
         # SIMD
         # print("M in float", self.M)
         # output = gemm_out * self.M
-        #M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
-        #output = gemm_out * M0
-        #output = output >> right_shift
+        M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
+        output = gemm_out * M0
+        output = output >> right_shift
         # print("M in float", self.M)
         # print("M0 in float", M0)
         # print("M0 in fxp", to_fix_val(M0))

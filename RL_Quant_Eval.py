@@ -282,8 +282,10 @@ if quant:
         
         M_linear1 = scale_bias_1
         M0_linear1, right_shift_linear1 = quantizeMultiplierSmallerThanOne(M_linear1)
-        print("*** Linear1 Dequant Scale M float ***", M_linear1)
-        print("*** Linear1 Dequant Scale M fxp ***", to_fix_val(M_linear1))
+        print("Linear1 Dequant Scale M float", M_linear1)
+        print("*** Linear1 Dequant Scale M0 float ***", M0_linear1)
+        print("*** Linear1 Dequant Scale M0 fxp ***", to_fix_val(M0_linear1))
+        print("*** Linear1 Dequant Right Shift ***", right_shift_linear1)
         requant_scale_linear1 = 1/scale_linear1_out
         print("*** Linear1 Output Requantization Scale float ***", requant_scale_linear1)
         print("*** Linear1 Output Requantization Scale fxp ***", to_fix_val(requant_scale_linear1))
@@ -313,8 +315,10 @@ if quant:
 
         M_linear2 = scale_bias_2
         M0_linear2, right_shift_linear2 = quantizeMultiplierSmallerThanOne(M_linear2)
-        print("*** Linear2 Dequant Scale M float ***", M_linear2)
-        print("*** Linear2 Dequant Scale M float ***", to_fix_val(M_linear2))
+        print("Linear2 Dequant Scale M float", M_linear2)
+        print("*** Linear2 Dequant Scale M0 float ***", M0_linear2)
+        print("*** Linear2 Dequant Scale M0 fxp ***", to_fix_val(M0_linear2))
+        print("*** Linear2 Dequant Right Shift ***", right_shift_linear1)
 
         weight_q_array2_final = torch.int_repr(policy_net[3].weight()).numpy().astype('int32') - zp_weight2
         weight_q_array2_final_capped = np.maximum(np.minimum(weight_q_array2_final, 127), -128)
@@ -331,7 +335,7 @@ if quant:
         zp_out_mu = mu_net[1].zero_point
         scale_input_mu = mu_net[0].scale.numpy()
         zp_input_mu =  mu_net[0].zero_point.numpy()
-        scale_bias_mu = scale_input_mu * scale_weight_mu
+        scale_bias_mu = scale_input_mu * scale_weight_mu # use this as M_mu when test for float accurcy 
         bias_mu_q = quantize(src=bias_mu_float, scale=scale_bias_mu, zero_point=0, precision=32, signed=True, isPrint=False)
         bias_3_file = np.tile(bias_mu_q, (16))
         np.savetxt('sac/sac_batch_size_2_gemm3_bias.txt', bias_3_file, fmt='%i')
@@ -347,13 +351,12 @@ if quant:
         print("Mu Output Scale: ", scale_out_mu)
         print("Mu Output Zero Point ", zp_out_mu)
         
-        M_mu = scale_bias_mu/scale_out_mu
+        M_mu = scale_bias_mu/scale_out_mu # use this as M_mu when test for hardware result 
         M0_mu, right_shift_mu = quantizeMultiplierSmallerThanOne(M_mu)
-        print("*** Mu Requant M float float ***", M_mu)
-        print("*** Mu Requant M float fxp ***", to_fix_val(M_mu))
-        # print("*** Mu Hardware M0 float ***", M0_mu)
-        # print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
-        # print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
+        print("Mu Requant M float float", M_mu)
+        print("*** Mu Hardware M0 float ***", M0_mu)
+        print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
+        print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
         print("*** Mu Hardware Zero Point ***", zp_out_mu)
         
         weight_q_mu_final = torch.int_repr(mu_net[1].weight()).numpy().astype('int32') - zp_weight_mu
@@ -392,11 +395,10 @@ if quant:
 
         M_prob = scale_bias_prob/scale_out_prob
         M0_prob, right_shift_prob = quantizeMultiplierSmallerThanOne(M_prob)
-        print("*** Prob Requant M float ***", M_prob)
-        print("*** Prob Requant M fxp ***", to_fix_val(M_prob))
-        # print("*** Prob Hardware M0 float ***", M0_prob)
-        # print("*** Prob Hardware M0 Fxp ***", to_fix_val(M0_prob))
-        # print("*** Prob Hardware Scale Right Shift ***", right_shift_prob)
+        print("Prob Requant M float", M_prob)
+        print("*** Prob Hardware M0 float ***", M0_prob)
+        print("*** Prob Hardware M0 Fxp ***", to_fix_val(M0_prob))
+        print("*** Prob Hardware Scale Right Shift ***", right_shift_prob)
         print("*** Prob Hardware Zero Point ***", zp_out_prob)
 
         weight_q_prob_final = torch.int_repr(prob_net[1].weight()).numpy().astype('int32') - zp_weight_prob
@@ -440,15 +442,25 @@ if quant:
                          weight_prob_fp = weight_prob_float, weight_prob_fxp = weight_q_prob_final_transposed, bias_prob_fp = bias_prob_float, bias_prob_fxp = bias_prob_q, M_prob = scale_bias_prob, input_prob_scale = scale_input_prob)
 
     print("Quantized Forward")
-    #out_int_linear = quantized_SAC.forward_int(input_fp) 
-    out_int_linear = quantized_SAC.forward_int(input_pad_final) 
+    #out_quantized_foward_float = quantized_SAC.forward_int(input_fp) 
+    out_quantized_foward_float = quantized_SAC.forward_int(input_pad_final) 
     print("Quantized Forward Float Output")
-    print(out_int_linear)
-    # out_int_re_quant = quantize(src=out_int_linear, scale=scale_linear2_out, zero_point=0, signed=False)
-    # print("Gemm Requantize Scale", 1/scale_linear2_out)
-    # np.savetxt('sac/sac_output_golden.txt', out_int_re_quant, fmt='%i')
-    # print("Quantized Forward Int Output")
-    # print(out_int_re_quant)
+    print(out_quantized_foward_float)
+
+    # Mu 
+    # The final int result in hardware is requantized by * 1/scale_out_mu + zp_out_mu
+    out_quantized_foward_int = np.round(out_quantized_foward_float/scale_out_mu + zp_out_mu)
+    print("Final Mu Int", out_quantized_foward_int)
+    np.savetxt('sac/sac_output_mu_golden.txt', out_quantized_foward_int, fmt='%i')
+    print("Quantized Forward Mu Int Output")
+    print(out_quantized_foward_int)
+
+    # prob
+    # out_quantized_foward_int = round(out_quantized_foward_float/scale_out_prob + zp_out_prob)
+    # print("Final Mu Int", out_quantized_foward_int)
+    # np.savetxt('sac/sac_output_prob_golden.txt', out_quantized_foward_int, fmt='%i')
+    # print("Quantized Forward Prob Int Output")
+    # print(out_quantized_foward_int)
 
 
     print("Fp Forward")
@@ -456,7 +468,7 @@ if quant:
     print(out_float)
 
     print("diff")
-    a = np.abs(out_int_linear-out_float)
+    a = np.abs(out_quantized_foward_float-out_float)
     b = np.abs(out_float)
     
     # Include 0
