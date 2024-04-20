@@ -59,13 +59,8 @@ class genesys_quantized_linear(nn.Module):
         
         # self.input = quantize(src=input, scale=self.input_scale, zero_point=0, signed=False) # zero_point = 0 since we pre-subtract 0 point before inference
 
-        # Systolic
+        # Gemm in integer 
         gemm_out = (input @ self.weight_fxp)
-        # print("First row of input:")
-        # print(input)
-        # print("First Col of weight:")
-        # print(self.weight_fxp[:,0])
-        # print(input @ self.weight_fxp[:,0])
 
         print("Raw Int Gemm Result: ")
         print(gemm_out)
@@ -73,23 +68,28 @@ class genesys_quantized_linear(nn.Module):
         print("Gemm Result Adding Bias: ")
         print(gemm_out)
 
-        print("Gemm out fxp")
+        # shift left by 16 since simd is in fxp not in integer 
         gemm_out_fxp: Any = np.left_shift(gemm_out, 16)
 
+        M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
         new_gemm_out_fxp: NDArray[Any] = np.full(gemm_out_fxp.shape, fill_value = Fxp(), dtype = Fxp)
+        
+        # SIMD operation * M which is decompose as * M0 then right shift
         for i, val in np.ndenumerate(gemm_out_fxp):
             temp: Fxp = to_fp(val)
-            temp *= to_fix(self.M)
+            temp *= to_fix(M0)
+            temp >>= right_shift
             new_gemm_out_fxp[i] = temp
-        
+
+        print("Gemm out fxp")
         print(new_gemm_out_fxp)
 
         # SIMD
         # print("M in float", self.M)
         # output = gemm_out * self.M
-        M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
-        output = gemm_out * M0
-        output = output >> right_shift
+        # M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
+        # output = gemm_out * M0
+        # output = output >> right_shift
         # print("M in float", self.M)
         # print("M0 in float", M0)
         # print("M0 in fxp", to_fix_val(M0))
