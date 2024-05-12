@@ -74,6 +74,8 @@ class genesys_quantized_linear(nn.Module):
         M0, right_shift = quantizeMultiplierSmallerThanOne(self.M)
         new_gemm_out_fxp: NDArray[Any] = np.full(gemm_out_fxp.shape, fill_value = Fxp(), dtype = Fxp)
         
+        print("M0 ", M0)
+        print("Right Shift ", right_shift)
         # SIMD operation * M which is decompose as * M0 then right shift
         for i, val in np.ndenumerate(gemm_out_fxp):
             temp: Fxp = to_fp(val)

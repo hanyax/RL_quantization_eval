@@ -10,8 +10,8 @@ import torch.nn.functional as F
 class qSAC(torch.nn.Module):
     def __init__(self, weight1_fp, weight1_fxp, bias1_fp, bias1_fxp, M_1,
                         weight2_fp, weight2_fxp, bias2_fp, bias2_fxp, M_2, input_2_scale,
-                        weight_mu_fp, weight_mu_fxp, bias_mu_fp, bias_mu_fxp, M_mu, input_mu_scale,
-                        weight_prob_fp, weight_prob_fxp, bias_prob_fp, bias_prob_fxp, M_prob, input_prob_scale):
+                        weight_mu_fp, weight_mu_fxp, bias_mu_fp, bias_mu_fxp, M_mu, input_mu_scale, output_mu_zp,
+                        weight_prob_fp, weight_prob_fxp, bias_prob_fp, bias_prob_fxp, M_prob, input_prob_scale, output_prob_zp):
 
         super().__init__()
         self.linear1 = genesys_quantized_linear(weight_fxp=weight1_fxp, bias_fxp=bias1_fxp, M=M_1)
@@ -27,11 +27,13 @@ class qSAC(torch.nn.Module):
         self.weight_mu_fp = weight_mu_fp
         self.bias_mu_fp = bias_mu_fp
         self.input_mu_scale = input_mu_scale
+        self.output_mu_zp = output_mu_zp
 
         self.linear_prob = genesys_quantized_linear(weight_fxp=weight_prob_fxp, bias_fxp=bias_prob_fxp, M=M_prob)
         self.weight_prob_fp = weight_prob_fp
         self.bias_prob_fp = bias_prob_fp
         self.input_prob_scale = input_prob_scale
+        self.output_prob_zp = output_prob_zp
 
     def forward_int(self, x):
         print("Linear 1 forward")
@@ -61,7 +63,7 @@ class qSAC(torch.nn.Module):
         # # x = torch.from_numpy(x @ self.weight2_fp.transpose() + self.bias2_fp)#.numpy()
         # # x = F.relu(x).numpy()
 
-        # # Requantize
+        # # Requantize: the output of the linear 2 relu is requantized by the input_mu scale 
         x_mu = quantize(src=x, zero_point=0, scale=self.input_mu_scale)
         x_prob = quantize(src=x, zero_point=0, scale=self.input_prob_scale) 
 
@@ -78,19 +80,19 @@ class qSAC(torch.nn.Module):
         np.savetxt('sac/sac_batch_size_2_gemm4_data.txt', prob_data_final, fmt='%i')
 
         print("Mu forward")
-        mu = self.linear_mu(x_mu).numpy()
+        mu = np.round(self.linear_mu(x_mu).numpy() + self.output_mu_zp)
         print("---------------------------------------------------")  
         
         print("Log Std forward")
-        prob = self.linear_prob(x_prob).numpy()
+        prob = np.round(self.linear_prob(x_prob).numpy() +  + self.output_prob_zp) 
         print("---------------------------------------------------")  
 
         np.savetxt('sac/sac_batch_size_2_mu_golden.txt', mu, fmt='%f')
         np.savetxt('sac/sac_batch_size_2_prob_golden.txt', prob, fmt='%f')
 
         #return x
-        return mu
-        #return prob
+        #return mu
+        return prob
     
     def forward_float(self, x):
         x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
@@ -100,5 +102,5 @@ class qSAC(torch.nn.Module):
         mu = torch.from_numpy(x @ self.weight_mu_fp.transpose() + self.bias_mu_fp).numpy()
         prob = torch.from_numpy(x @ self.weight_prob_fp.transpose() + self.bias_prob_fp).numpy()
         #return x
-        return mu
-        #return prob
+        #return mu
+        return prob

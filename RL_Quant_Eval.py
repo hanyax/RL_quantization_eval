@@ -257,7 +257,9 @@ if quant:
         # np.savetxt('sac_data/weight/sac_linear3.txt', weight_q_array3, fmt='%i')
 
     elif runSAC:
-        #print(policy_net)
+        print("SAC latent-pi net")
+        print(policy_net)
+        
         print("Input Quantization")
         input_q = policy_net[0]
         scale_input = input_q.scale.numpy()
@@ -328,12 +330,13 @@ if quant:
         print("---------------------------------------------------")
 
         print("Linear Layer 3")
-        #print(mu_net)
+        # print("SAC mu net")
+        # print(mu_net)
         scale_weight_mu = mu_net[1].weight().q_scale()
         zp_weight_mu = mu_net[1].weight().q_zero_point()
         scale_out_mu = mu_net[1].scale
         zp_out_mu = mu_net[1].zero_point
-        scale_input_mu = mu_net[0].scale.numpy()
+        scale_input_mu =  mu_net[0].scale.numpy()
         zp_input_mu =  mu_net[0].zero_point.numpy()
         scale_bias_mu = scale_input_mu * scale_weight_mu # use this as M_mu when test for float accurcy 
         bias_mu_q = quantize(src=bias_mu_float, scale=scale_bias_mu, zero_point=0, precision=32, signed=True, isPrint=False)
@@ -341,8 +344,8 @@ if quant:
         np.savetxt('sac/sac_batch_size_2_gemm3_bias.txt', bias_3_file, fmt='%i')
 
         requant_scale_mu = 1/scale_input_mu
-        print("*** Mu net Input Requantization Scale float ***", requant_scale_mu)
-        print("*** Mu net Input Requantization Scale fxp ***", to_fix_val(requant_scale_mu))
+        print("*** Linear 2 Requant / Mu net Input Scale float ***", requant_scale_mu)
+        print("*** Linear 2 Requant / Mu net Input Scale fxp ***", to_fix_val(requant_scale_mu))
 
         print("Mu net Input Scale ", scale_input_mu)
         print("Mu net Input Zero Point ", zp_input_mu)
@@ -353,7 +356,7 @@ if quant:
         
         M_mu = scale_bias_mu/scale_out_mu # use this as M_mu when test for hardware result 
         M0_mu, right_shift_mu = quantizeMultiplierSmallerThanOne(M_mu)
-        print("Mu Requant M float float", M_mu)
+        print("Mu Requant M float", M_mu)
         print("*** Mu Hardware M0 float ***", M0_mu)
         print("*** Mu Hardware M0 Fxp ***", to_fix_val(M0_mu))
         print("*** Mu Hardware Scale Right Shift ***", right_shift_mu)
@@ -383,8 +386,8 @@ if quant:
         np.savetxt('sac/sac_batch_size_2_gemm4_bias.txt', bias_4_file, fmt='%i')
 
         requant_scale_prob = 1/scale_input_prob
-        print("*** Prob net Input Requantization Scale float ***", requant_scale_prob)
-        print("*** Prob net Input Requantization Scale fxp ***", to_fix_val(requant_scale_prob))
+        print("*** Linear 2 Requant / Prob net Input Scale float ***", requant_scale_prob)
+        print("*** Linear 2 Requant / Prob net Input Scale fxp ***", to_fix_val(requant_scale_prob))
 
         print("Prob net Input Scale ", scale_input_prob)
         print("Prob net Input Zero Point ", zp_input_prob)
@@ -438,29 +441,28 @@ if quant:
 
     quantized_SAC = qSAC(weight1_fp = weight1_float, weight1_fxp = weight_q_array1_final_transposed, bias1_fp = bias1_float, bias1_fxp = bias1_q, M_1 = scale_bias_1,
                          weight2_fp = weight2_float, weight2_fxp = weight_q_array2_final_transposed, bias2_fp = bias2_float, bias2_fxp = bias2_q, M_2 = scale_bias_2, input_2_scale = scale_linear1_out,
-                         weight_mu_fp = weight_mu_float, weight_mu_fxp = weight_q_mu_final_transposed, bias_mu_fp = bias_mu_float, bias_mu_fxp = bias_mu_q, M_mu = scale_bias_mu, input_mu_scale = scale_input_mu,
-                         weight_prob_fp = weight_prob_float, weight_prob_fxp = weight_q_prob_final_transposed, bias_prob_fp = bias_prob_float, bias_prob_fxp = bias_prob_q, M_prob = scale_bias_prob, input_prob_scale = scale_input_prob)
+                         weight_mu_fp = weight_mu_float, weight_mu_fxp = weight_q_mu_final_transposed, bias_mu_fp = bias_mu_float, bias_mu_fxp = bias_mu_q, M_mu = M_mu, input_mu_scale = scale_input_mu, output_mu_zp = zp_out_mu,
+                         weight_prob_fp = weight_prob_float, weight_prob_fxp = weight_q_prob_final_transposed, bias_prob_fp = bias_prob_float, bias_prob_fxp = bias_prob_q, M_prob = M_prob, input_prob_scale = scale_input_prob, output_prob_zp = zp_out_prob)
 
     print("Quantized Forward")
     #out_quantized_foward_float = quantized_SAC.forward_int(input_fp) 
-    out_quantized_foward_float = quantized_SAC.forward_int(input_pad_final) 
-    print("Quantized Forward Float Output")
-    print(out_quantized_foward_float)
+    out_quantized_foward_int = quantized_SAC.forward_int(input_pad_final) 
+    # print("Quantized Forward Mu Int Output")
+    print("Quantized Forward Prob Int Output")
+    print(out_quantized_foward_int)
 
     # Mu 
     # The final int result in hardware is requantized by * 1/scale_out_mu + zp_out_mu
-    out_quantized_foward_int = np.round(out_quantized_foward_float/scale_out_mu + zp_out_mu)
-    print("Final Mu Int", out_quantized_foward_int)
-    np.savetxt('sac/sac_output_mu_golden.txt', out_quantized_foward_int, fmt='%i')
-    print("Quantized Forward Mu Int Output")
-    print(out_quantized_foward_int)
+    # out_quantized_foward_float = (out_quantized_foward_int - zp_out_mu) * scale_out_mu
+    # np.savetxt('sac/sac_output_mu_golden.txt', out_quantized_foward_int, fmt='%i')
+    # print("Quantized Forward Mu float Output")
+    # print(out_quantized_foward_float)
 
     # prob
-    # out_quantized_foward_int = round(out_quantized_foward_float/scale_out_prob + zp_out_prob)
-    # print("Final Mu Int", out_quantized_foward_int)
-    # np.savetxt('sac/sac_output_prob_golden.txt', out_quantized_foward_int, fmt='%i')
-    # print("Quantized Forward Prob Int Output")
-    # print(out_quantized_foward_int)
+    out_quantized_foward_float = (out_quantized_foward_int - zp_out_prob) * scale_out_prob
+    np.savetxt('sac/sac_output_prob_golden.txt', out_quantized_foward_int, fmt='%i')
+    print("Quantized Forward Prob float output")
+    print(out_quantized_foward_float)
 
 
     print("Fp Forward")
