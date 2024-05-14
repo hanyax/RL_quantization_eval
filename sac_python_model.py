@@ -81,18 +81,19 @@ class qSAC(torch.nn.Module):
 
         print("Mu forward")
         mu = np.round(self.linear_mu(x_mu).numpy() + self.output_mu_zp)
+        mu = np.maximum(np.minimum(mu, 255), 0)
         print("---------------------------------------------------")  
         
         print("Log Std forward")
         prob = np.round(self.linear_prob(x_prob).numpy() +  + self.output_prob_zp) 
+        prob = np.maximum(np.minimum(prob, 255), 0)
         print("---------------------------------------------------")  
 
         np.savetxt('sac/sac_batch_size_2_mu_golden.txt', mu, fmt='%f')
         np.savetxt('sac/sac_batch_size_2_prob_golden.txt', prob, fmt='%f')
 
         #return x
-        #return mu
-        return prob
+        return mu, prob
     
     def forward_float(self, x):
         x = torch.from_numpy(x @ self.weight1_fp.transpose() + self.bias1_fp)#.numpy()
@@ -102,5 +103,4 @@ class qSAC(torch.nn.Module):
         mu = torch.from_numpy(x @ self.weight_mu_fp.transpose() + self.bias_mu_fp).numpy()
         prob = torch.from_numpy(x @ self.weight_prob_fp.transpose() + self.bias_prob_fp).numpy()
         #return x
-        #return mu
-        return prob
+        return mu, prob

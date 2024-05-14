@@ -184,12 +184,12 @@ if quant:
             obs, reward, done, infos = env.step(action)
 
 
-    # print("After Calibration: ", policy_net)
-    # if runPPO:
-    #     print("After Calibration: ", action_net)
-    # elif runSAC:
-    #     print("After Calibration: ", mu_net)
-    #     print("After Calibration: ", prob_net)
+    print("After Calibration: ", policy_net)
+    if runPPO:
+        print("After Calibration: ", action_net)
+    elif runSAC:
+        print("After Calibration: ", mu_net)
+        print("After Calibration: ", prob_net)
 
 
     torch.quantization.convert(policy_net, inplace=True)
@@ -239,22 +239,6 @@ if quant:
         print(weight_q_array2)
         np.savetxt('ppo_data/weight/sac_linear2.txt', weight_q_array2, fmt='%i')
         print("---------------------------------------------------")
-
-        # print("Linear Layer 3")
-        # print(action_net[0])
-        # scale_weight3 = action_net[1].weight().q_scale()
-        # zp_weight3 = action_net[1].weight().q_zero_point()
-        # scale_linear3_out = action_net[1].scale
-        # zp_linear3_out = action_net[1].zero_point
-        # print("Linear 3 Weight Scale: ", scale_weight3)
-        # print("Linear 3 Weight Zero Point ", zp_weight3)
-        # print("Linear 3 Output Scale: ", scale_linear3_out)
-        # print("Linear 3 Output Zero Point ", zp_linear3_out)
-
-        # weight_q_array3 = torch.int_repr(action_net[1].weight()).numpy().astype('int32')
-        # print(weight_q_array3)
-
-        # np.savetxt('sac_data/weight/sac_linear3.txt', weight_q_array3, fmt='%i')
 
     elif runSAC:
         print("SAC latent-pi net")
@@ -330,8 +314,9 @@ if quant:
         print("---------------------------------------------------")
 
         print("Linear Layer 3")
-        # print("SAC mu net")
-        # print(mu_net)
+        print("SAC mu net")
+        print(mu_net)
+
         scale_weight_mu = mu_net[1].weight().q_scale()
         zp_weight_mu = mu_net[1].weight().q_zero_point()
         scale_out_mu = mu_net[1].scale
@@ -446,44 +431,68 @@ if quant:
 
     print("Quantized Forward")
     #out_quantized_foward_float = quantized_SAC.forward_int(input_fp) 
-    out_quantized_foward_int = quantized_SAC.forward_int(input_pad_final) 
-    # print("Quantized Forward Mu Int Output")
+    mu_quantized_foward_int, prob_quantized_foward_int = quantized_SAC.forward_int(input_pad_final) 
+    print("Quantized Forward Mu Int Output")
+    print(mu_quantized_foward_int)
     print("Quantized Forward Prob Int Output")
-    print(out_quantized_foward_int)
+    print(prob_quantized_foward_int)
 
     # Mu 
     # The final int result in hardware is requantized by * 1/scale_out_mu + zp_out_mu
-    # out_quantized_foward_float = (out_quantized_foward_int - zp_out_mu) * scale_out_mu
-    # np.savetxt('sac/sac_output_mu_golden.txt', out_quantized_foward_int, fmt='%i')
-    # print("Quantized Forward Mu float Output")
-    # print(out_quantized_foward_float)
+    mu_quantized_foward_float = (mu_quantized_foward_int - zp_out_mu) * scale_out_mu
+    np.savetxt('sac/sac_output_mu_golden.txt', mu_quantized_foward_int, fmt='%i')
+    print("Quantized Forward Mu float Output")
+    print(mu_quantized_foward_float)
 
     # prob
-    out_quantized_foward_float = (out_quantized_foward_int - zp_out_prob) * scale_out_prob
-    np.savetxt('sac/sac_output_prob_golden.txt', out_quantized_foward_int, fmt='%i')
+    prob_quantized_foward_float = (prob_quantized_foward_int - zp_out_prob) * scale_out_prob
+    np.savetxt('sac/sac_output_prob_golden.txt', prob_quantized_foward_int, fmt='%i')
     print("Quantized Forward Prob float output")
-    print(out_quantized_foward_float)
-
+    print(prob_quantized_foward_float)
+    print("--------------------------")
 
     print("Fp Forward")
-    out_float = quantized_SAC.forward_float(input_fp)
-    print(out_float)
+    mu_float, prob_float = quantized_SAC.forward_float(input_fp)
+    print("Full precision forward mu")
+    print(mu_float)
 
-    print("diff")
-    a = np.abs(out_quantized_foward_float-out_float)
-    b = np.abs(out_float)
+    print("Full precision forward prob")
+    print(prob_float)
+    print("--------------------------")
+
+    print("Mu diff")
+    mu_a = np.abs(mu_quantized_foward_float-mu_float)
+    mu_b = np.abs(mu_float)
     
     # Include 0
     print("Include 0:")
-    print(np.average(np.divide(a, b, out=np.zeros_like(a), where=b!=0)))
+    print(np.average(np.divide(mu_a, mu_b, out=np.zeros_like(mu_a), where=mu_b!=0)))
 
     # Exclude 0 
-    result = []
-    for idx, x in enumerate(b):
+    mu_result = []
+    for idx, x in enumerate(mu_b):
         if x != 0:
-            result.append(a[idx]/x) 
+            mu_result.append(mu_a[idx]/x) 
     print("Exclude 0:")
-    print(np.average(np.array(result)))
+    print(np.average(np.array(mu_result)))
+    print("-------------------------------")
+
+    print("Prob diff")
+    prob_a = np.abs(prob_quantized_foward_float-prob_float)
+    prob_b = np.abs(prob_float)
+    
+    # Include 0
+    print("Include 0:")
+    print(np.average(np.divide(prob_a, prob_b, out=np.zeros_like(prob_a), where=prob_b!=0)))
+
+    # Exclude 0 
+    prob_result = []
+    for idx, x in enumerate(prob_b):
+        if x != 0:
+            prob_result.append(prob_a[idx]/x) 
+    print("Exclude 0:")
+    print(np.average(np.array(prob_result)))
+    print("-------------------------------")
 
 # Evaluation
 ##########################
