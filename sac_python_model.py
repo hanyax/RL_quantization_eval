@@ -55,6 +55,7 @@ class qSAC(torch.nn.Module):
         print("Linear 2 forward")
         x = self.linear2(x)#.numpy()
         x = F.relu(x).numpy()
+        print(x)
         # print("---------------------------------------------------")  
 
         # # Uncomment when check mu and prob quantization alone
@@ -65,6 +66,8 @@ class qSAC(torch.nn.Module):
 
         # # Requantize: the output of the linear 2 relu is requantized by the input_mu scale 
         x_mu = quantize(src=x, zero_point=0, scale=self.input_mu_scale)
+        print("linear2 output after scale")
+        print(x_mu)
         x_prob = quantize(src=x, zero_point=0, scale=self.input_prob_scale) 
 
         mu_data_final = np.zeros((2,256))

@@ -304,7 +304,7 @@ if quant:
         print("Linear2 Dequant Scale M float", M_linear2)
         print("*** Linear2 Dequant Scale M0 float ***", M0_linear2)
         print("*** Linear2 Dequant Scale M0 fxp ***", to_fix_val(M0_linear2))
-        print("*** Linear2 Dequant Right Shift ***", right_shift_linear1)
+        print("*** Linear2 Dequant Right Shift ***", right_shift_linear2)
 
         weight_q_array2_final = torch.int_repr(policy_net[3].weight()).numpy().astype('int32') - zp_weight2
         weight_q_array2_final_capped = np.maximum(np.minimum(weight_q_array2_final, 127), -128)
