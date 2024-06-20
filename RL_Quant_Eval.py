@@ -29,6 +29,7 @@ runPPO = False
 runSAC = not runPPO
 n_timesteps = 50000
 
+## Load Pre-train Networks
 if runPPO:
     model_path = "/home/hanyang/RL_quantization_eval/rl-trained-agents/testPPO_exp_1000_pytorch_test50"
     model = PPO.load(model_path)
