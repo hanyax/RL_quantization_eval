@@ -18,5 +18,5 @@ The networks with packaged Quantization Stub are then inserted back to the polic
 ## Step 5. Quantization Conversation and Parameter Extraction
 After the califbration data is collected, we quantized the networks based on these calibrations. The quantized weight and bias are then stored. The quantization parameters such as scales and zero points is also displayed which need to be later entered into the NeuroWeaver Accelerator Compiler for inference on the hardware. 
 
-## Step 7. Quantized Network Evaluation 
+## Step 6. Quantized Network Evaluation 
 Finally, the quantized network is used side by side in test inference for comparison. 
